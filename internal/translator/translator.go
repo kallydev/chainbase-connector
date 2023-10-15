@@ -9,17 +9,17 @@ import (
 	"github.com/kallydev/chainbase-connector/internal/chainbase"
 )
 
-func Translate(data chainbase.DataWarehouseData) ([]byte, error) {
+func Translate(columns []chainbase.DataWarehouseDataMeta, rows []map[string]any) ([]byte, error) {
 	var buffer proto.Buffer
 
-	buffer.PutInt(len(data.Meta))
-	buffer.PutInt(data.Rows)
+	buffer.PutInt(len(columns))
+	buffer.PutInt(len(rows))
 
-	for _, column := range data.Meta {
+	for _, column := range columns {
 		buffer.PutString(column.Name)
 		buffer.PutString(column.Type)
 
-		for _, row := range data.Result {
+		for _, row := range rows {
 			switch columnType := proto.ColumnType(column.Type); columnType {
 			case
 				proto.ColumnTypeInt8, proto.ColumnTypeInt16, proto.ColumnTypeInt32,

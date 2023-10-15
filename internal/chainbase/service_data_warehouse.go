@@ -17,6 +17,7 @@ type DataWarehouseData struct {
 	Meta      []DataWarehouseDataMeta `json:"meta"`
 	Result    []map[string]any        `json:"result"`
 	ErrMsg    string                  `json:"err_msg,omitempty"`
+	NextPage  int                     `json:"next_page"`
 }
 
 type DataWarehouseDataMeta struct {
@@ -46,8 +47,8 @@ func (s *DataWarehouseService) Query(ctx context.Context, query string) (*Respon
 
 func (s *DataWarehouseService) Paginate(ctx context.Context, taskID string, page int) (*Response[*DataWarehouseData], *http.Response, error) {
 	params := map[string]any{
-		"taskID": taskID,
-		"page":   page,
+		"task_id": taskID,
+		"page":    page,
 	}
 
 	httpRequest, err := s.client.NewRequest(ctx, http.MethodPost, "v1/dw/query", params)

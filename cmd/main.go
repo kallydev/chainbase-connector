@@ -45,25 +45,46 @@ var command = cobra.Command{
 
 			zap.L().Info("new query request", zap.String("client-ip", c.RealIP()), zap.String("user-agent", c.Request().UserAgent()), zap.ByteString("statement", data))
 
-			// Wait for rate limit
-			if err := limiter.Wait(c.Request().Context()); err != nil {
-				return fmt.Errorf("wait for rate limit: %w", err)
+			var (
+				response *chainbase.Response[*chainbase.DataWarehouseData]
+				columns  []chainbase.DataWarehouseDataMeta
+				rows     = make([]map[string]any, 0)
+			)
+
+			for page := 0; page == 0 || response.Data.NextPage > 0; page++ {
+				// Wait for rate limit
+				if err := limiter.Wait(c.Request().Context()); err != nil {
+					return fmt.Errorf("wait for rate limit: %w", err)
+				}
+
+				var httpResponse *http.Response
+
+				if page == 0 {
+					if response, httpResponse, err = client.DataWarehouse.Query(c.Request().Context(), string(data)); err != nil {
+						return fmt.Errorf("query chainbase api: %w", err)
+					}
+				} else {
+					if response, httpResponse, err = client.DataWarehouse.Paginate(c.Request().Context(), response.Data.TaskID, page); err != nil {
+						return fmt.Errorf("query chainbase api by task id %s: %w", response.Data.TaskID, err)
+					}
+				}
+
+				if httpResponse.StatusCode != http.StatusOK {
+					return fmt.Errorf("http response has an error: %d %s", httpResponse.StatusCode, httpResponse.Status)
+				}
+
+				if response.Code != chainbase.CodeOK {
+					return fmt.Errorf("response has an error: %d %s", response.Code, response.Message)
+				}
+
+				if page == 0 {
+					columns = response.Data.Meta
+				}
+
+				rows = append(rows, response.Data.Result...)
 			}
 
-			response, httpResponse, err := client.DataWarehouse.Query(c.Request().Context(), string(data))
-			if err != nil {
-				return fmt.Errorf("query chainbase api: %w", err)
-			}
-
-			if httpResponse.StatusCode != http.StatusOK {
-				return fmt.Errorf("http response has an error: %d %s", httpResponse.StatusCode, httpResponse.Status)
-			}
-
-			if response.Code != chainbase.CodeOK {
-				return fmt.Errorf("response has an error: %d %s", response.Code, response.Message)
-			}
-
-			blob, err := translator.Translate(*response.Data)
+			blob, err := translator.Translate(columns, rows)
 			if err != nil {
 				return fmt.Errorf("translate result for native format: %w", err)
 			}
